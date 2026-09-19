@@ -1,7 +1,29 @@
-import type { LinkInfo, LinkReply, PlayerReply, RuntimeMessage } from "./shared/messages";
+import type {
+  LinkInfo,
+  LinkReply,
+  PlayerReply,
+  RuntimeMessage,
+  StageWindowBounds,
+  WatchWindowReply,
+  WatchWindowState,
+} from "./shared/messages";
 import { isSupportedWatchUrl, siteFromUrl } from "./shared/sites";
 
 const LINK_KEY = "linkedTab";
+const WINDOW_STATE_KEY = "watchWindowPriorState";
+const STAGE_WINDOW_KEY = "reactionStageWindowId";
+
+type RestorableWindowState = "normal" | "maximized";
+
+type StoredWindowState = {
+  windowId: number;
+  state: RestorableWindowState;
+};
+
+function restoreWindowState(prior: chrome.windows.WindowState | string | undefined): RestorableWindowState {
+  if (prior === chrome.windows.WindowState.MAXIMIZED || prior === "maximized") return "maximized";
+  return "normal";
+}
 
 async function getLink(): Promise<LinkInfo | null> {
   const stored = await chrome.storage.session.get(LINK_KEY);
@@ -56,6 +78,114 @@ function sendToTab(tabId: number, command: { type: string; seconds?: number }): 
   }));
 }
 
+async function openReactionStage(bounds?: StageWindowBounds): Promise<WatchWindowReply> {
+  const stored = await chrome.storage.session.get(STAGE_WINDOW_KEY);
+  const existingId = stored[STAGE_WINDOW_KEY] as number | undefined;
+  if (existingId != null) {
+    try {
+      await fillWindow(existingId, bounds);
+      return { ok: true };
+    } catch {
+      await chrome.storage.session.remove(STAGE_WINDOW_KEY);
+    }
+  }
+
+  try {
+    const createData: chrome.windows.CreateData = {
+      url: chrome.runtime.getURL("src/stage/index.html"),
+      type: "popup",
+      focused: true,
+    };
+    if (bounds && bounds.width > 100 && bounds.height > 100) {
+      createData.left = Math.round(bounds.left);
+      createData.top = Math.round(bounds.top);
+      createData.width = Math.round(bounds.width);
+      createData.height = Math.round(bounds.height);
+    } else {
+      createData.state = "fullscreen";
+    }
+
+    const win = await chrome.windows.create(createData);
+    const windowId = win?.id;
+    if (windowId == null) {
+      return { ok: false, error: "Could not open the reaction fullscreen window." };
+    }
+    await chrome.storage.session.set({ [STAGE_WINDOW_KEY]: windowId });
+    await fillWindow(windowId, bounds);
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Could not open the reaction fullscreen window." };
+  }
+}
+
+async function fillWindow(windowId: number, bounds?: StageWindowBounds): Promise<void> {
+  if (bounds && bounds.width > 100 && bounds.height > 100) {
+    await chrome.windows.update(windowId, {
+      focused: true,
+      left: Math.round(bounds.left),
+      top: Math.round(bounds.top),
+      width: Math.round(bounds.width),
+      height: Math.round(bounds.height),
+    });
+  }
+  try {
+    await chrome.windows.update(windowId, { state: "fullscreen", focused: true });
+  } catch {
+    try {
+      await chrome.windows.update(windowId, { state: "maximized", focused: true });
+    } catch {
+      /* window is already as large as we could make it */
+    }
+  }
+}
+
+async function closeReactionStage(): Promise<WatchWindowReply> {
+  const stored = await chrome.storage.session.get(STAGE_WINDOW_KEY);
+  const existingId = stored[STAGE_WINDOW_KEY] as number | undefined;
+  await chrome.storage.session.remove(STAGE_WINDOW_KEY);
+  if (existingId == null) return { ok: true };
+  try {
+    await chrome.windows.remove(existingId);
+  } catch {
+    /* already closed */
+  }
+  return { ok: true };
+}
+
+async function setWatchWindow(state: WatchWindowState): Promise<WatchWindowReply> {
+  const link = await getLink();
+  if (!link) {
+    return { ok: false, error: "Link a Netflix or JioHotstar tab first." };
+  }
+
+  try {
+    const tab = await chrome.tabs.get(link.tabId);
+    if (tab.windowId == null) {
+      return { ok: false, error: "Could not find the watch window." };
+    }
+
+    if (state === "fullscreen") {
+      const win = await chrome.windows.get(tab.windowId);
+      const prior: StoredWindowState = {
+        windowId: tab.windowId,
+        state: restoreWindowState(win.state),
+      };
+      await chrome.storage.session.set({ [WINDOW_STATE_KEY]: prior });
+      await chrome.windows.update(tab.windowId, { state: "fullscreen", focused: true });
+      return { ok: true };
+    }
+
+    const stored = await chrome.storage.session.get(WINDOW_STATE_KEY);
+    const prior = stored[WINDOW_STATE_KEY] as StoredWindowState | undefined;
+    const nextState =
+      prior?.windowId === tab.windowId ? restoreWindowState(prior.state) : "normal";
+    await chrome.windows.update(tab.windowId, { state: nextState, focused: true });
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Could not change the watch window. Relink the tab." };
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 });
@@ -89,6 +219,21 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
     return true;
   }
 
+  if (message.kind === "SET_WATCH_WINDOW") {
+    void setWatchWindow(message.state).then(sendResponse);
+    return true;
+  }
+
+  if (message.kind === "OPEN_REACTION_STAGE") {
+    void openReactionStage(message.bounds).then(sendResponse);
+    return true;
+  }
+
+  if (message.kind === "CLOSE_REACTION_STAGE") {
+    void closeReactionStage().then(sendResponse);
+    return true;
+  }
+
   if (message.kind === "TO_PLAYER") {
     void getLink().then(async (link) => {
       if (!link) {
@@ -114,6 +259,14 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
   }
 
   return false;
+});
+
+chrome.windows.onRemoved.addListener((windowId) => {
+  void chrome.storage.session.get(STAGE_WINDOW_KEY).then((stored) => {
+    if (stored[STAGE_WINDOW_KEY] === windowId) {
+      void chrome.storage.session.remove(STAGE_WINDOW_KEY);
+    }
+  });
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {

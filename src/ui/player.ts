@@ -9,6 +9,7 @@ import {
 import { formatOffset, formatTimestamp, parseTimestamp } from "../shared/time";
 import { siteLabel } from "../shared/sites";
 import type { LinkInfo } from "../shared/messages";
+import { STAGE_CHANNEL, type PlayerToStageMessage, type StageToPlayerMessage } from "../shared/stage";
 import { createTransport, type Transport } from "./transport";
 
 function sampleReactionUrl(mode: "extension" | "demo"): string {
@@ -19,6 +20,27 @@ function sampleReactionUrl(mode: "extension" | "demo"): string {
 }
 
 const OFFSET_KEY = "reactionSync.offset";
+const KEY_SEEK_SECONDS = 5;
+
+function screenLeft(): number {
+  const screen = window.screen as Screen & { availLeft?: number };
+  return screen.availLeft || 0;
+}
+
+function screenTop(): number {
+  const screen = window.screen as Screen & { availTop?: number };
+  return screen.availTop || 0;
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  if (tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (tag !== "INPUT") return false;
+  const type = target instanceof HTMLInputElement ? target.type : "";
+  return type !== "range";
+}
 
 export function mountPlayer(root: HTMLElement) {
   const transport: Transport = createTransport();
@@ -31,6 +53,10 @@ export function mountPlayer(root: HTMLElement) {
   let link: LinkInfo | null = null;
   let applyingRemote = false;
   let lastSeekSent = 0;
+  let showWindowFullscreen = false;
+  let reactionStageOpen = false;
+  let mirroringStage = false;
+  const stageChannel = new BroadcastChannel(STAGE_CHANNEL);
 
   const setStatus = (text: string, kind: "ok" | "error" | "" = "") => {
     ui.status.textContent = text;
@@ -150,17 +176,169 @@ export function mountPlayer(root: HTMLElement) {
     setStatus(`Offset is now ${formatOffset(lock.offsetSeconds)}.`, "ok");
   };
 
+  const applyLink = (next: LinkInfo | null) => {
+    link = next;
+    if (!link) {
+      ui.linked.textContent = "No tab linked";
+      ui.fsShow.disabled = true;
+      ui.fsShow.textContent = "Show as fullscreen";
+      return;
+    }
+    ui.linked.textContent = `${siteLabel(link.site)} · ${link.title}`;
+    ui.fsShow.disabled = false;
+    ui.fsShow.textContent = `${siteLabel(link.site)} as fullscreen`;
+  };
+
   const linkTab = async () => {
     const reply = await transport.linkActiveTab();
     if (!reply.ok) {
-      link = null;
+      applyLink(null);
       setStatus(reply.error, "error");
-      ui.linked.textContent = "No tab linked";
       return;
     }
-    link = reply.link;
-    ui.linked.textContent = `${siteLabel(link.site)} · ${link.title}`;
-    setStatus(`Linked ${siteLabel(link.site)}. Type the overlay time and press Sync.`, "ok");
+    applyLink(reply.link);
+    setStatus(`Linked ${siteLabel(reply.link.site)}. Type the overlay time and press Sync.`, "ok");
+  };
+
+  const closeFullscreenMenu = () => {
+    ui.fsPanel.hidden = true;
+    ui.fsToggle.setAttribute("aria-expanded", "false");
+  };
+
+  const toggleFullscreenMenu = () => {
+    const open = ui.fsPanel.hidden;
+    ui.fsPanel.hidden = !open;
+    ui.fsToggle.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+
+  const reactionIsFullscreen = () =>
+    document.fullscreenElement === reaction || document.fullscreenElement === ui.videoShell;
+  const reactionIsPip = () => document.pictureInPictureElement === reaction;
+
+  const refreshFullscreenUi = () => {
+    const active =
+      reactionIsFullscreen() || showWindowFullscreen || reactionIsPip() || reactionStageOpen;
+    ui.fsExit.hidden = !active;
+    ui.fsToggle.textContent = active ? "Exit fullscreen" : "Fullscreen";
+  };
+
+  const postToStage = (message: PlayerToStageMessage) => {
+    stageChannel.postMessage(message);
+  };
+
+  const stageInitPayload = (): PlayerToStageMessage => ({
+    kind: "init",
+    src: reaction.currentSrc || reaction.src,
+    currentTime: reaction.currentTime || 0,
+    paused: reaction.paused,
+    volume: reaction.volume,
+  });
+
+  const leaveReactionStage = async () => {
+    if (!reactionStageOpen) return;
+    reactionStageOpen = false;
+    reaction.muted = false;
+    postToStage({ kind: "close" });
+    await transport.closeReactionStage();
+    refreshFullscreenUi();
+  };
+
+  const seekReactionBy = (delta: number) => {
+    if (!Number.isFinite(reaction.duration) || reaction.duration <= 0) return;
+    const next = Math.min(Math.max(0, (reaction.currentTime || 0) + delta), reaction.duration);
+    reaction.currentTime = next;
+  };
+
+  const openReactionStageWindow = async () => {
+    if (showWindowFullscreen) {
+      const reply = await transport.setWatchWindow("restore");
+      showWindowFullscreen = false;
+      if (!reply.ok) setStatus(reply.error, "error");
+    }
+    if (reactionIsPip()) {
+      await document.exitPictureInPicture().catch(() => undefined);
+    }
+    const reply = await transport.openReactionStage({
+      left: screenLeft(),
+      top: screenTop(),
+      width: window.screen.availWidth,
+      height: window.screen.availHeight,
+    });
+    if (!reply.ok) {
+      setStatus(reply.error, "error");
+      refreshFullscreenUi();
+      return;
+    }
+    reactionStageOpen = true;
+    reaction.muted = true;
+    postToStage(stageInitPayload());
+    window.setTimeout(() => {
+      if (reactionStageOpen) postToStage(stageInitPayload());
+    }, 250);
+    setStatus("Reaction is fullscreen. Esc or Exit fullscreen to leave.", "ok");
+    refreshFullscreenUi();
+  };
+
+  const enterReactionFullscreen = async () => {
+    if (!reaction.src) {
+      setStatus("Load a reaction first.", "error");
+      return;
+    }
+    closeFullscreenMenu();
+    await openReactionStageWindow();
+  };
+
+  const enterShowFullscreen = async () => {
+    if (!reaction.src) {
+      setStatus("Load a reaction first.", "error");
+      return;
+    }
+    if (!link) {
+      setStatus("Link the watch tab first.", "error");
+      return;
+    }
+    closeFullscreenMenu();
+    await leaveReactionStage();
+    if (reactionIsFullscreen()) {
+      await document.exitFullscreen().catch(() => undefined);
+    }
+    try {
+      if (!reactionIsPip()) await reaction.requestPictureInPicture();
+    } catch {
+      setStatus("Could not open Picture-in-Picture. Allow it and try again.", "error");
+      return;
+    }
+    const reply = await transport.setWatchWindow("fullscreen");
+    if (!reply.ok) {
+      showWindowFullscreen = false;
+      setStatus(reply.error, "error");
+      refreshFullscreenUi();
+      return;
+    }
+    showWindowFullscreen = true;
+    setStatus(
+      `${siteLabel(link.site)} is fullscreen. The reaction is in Picture-in-Picture.`,
+      "ok",
+    );
+    refreshFullscreenUi();
+  };
+
+  const exitPresentModes = async () => {
+    closeFullscreenMenu();
+    await leaveReactionStage();
+    if (reactionIsFullscreen()) {
+      await document.exitFullscreen().catch(() => undefined);
+    }
+    if (reactionIsPip()) {
+      await document.exitPictureInPicture().catch(() => undefined);
+    }
+    if (showWindowFullscreen) {
+      const reply = await transport.setWatchWindow("restore");
+      showWindowFullscreen = false;
+      if (!reply.ok) setStatus(reply.error, "error");
+      else setStatus("Left fullscreen.", "");
+    }
+    refreshFullscreenUi();
   };
 
   const loadFile = (file: File) => {
@@ -195,6 +373,18 @@ export function mountPlayer(root: HTMLElement) {
     else reaction.pause();
   });
 
+  ui.fsToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (!ui.fsExit.hidden) {
+      void exitPresentModes();
+      return;
+    }
+    toggleFullscreenMenu();
+  });
+  ui.fsReaction.addEventListener("click", () => void enterReactionFullscreen());
+  ui.fsShow.addEventListener("click", () => void enterShowFullscreen());
+  ui.fsExit.addEventListener("click", () => void exitPresentModes());
+
   ui.sync.addEventListener("click", () => void syncFromOverlay());
   ui.link.addEventListener("click", () => void linkTab());
   ui.nudgeBack01.addEventListener("click", () => void nudge(-0.1));
@@ -216,7 +406,7 @@ export function mountPlayer(root: HTMLElement) {
   });
   reaction.addEventListener("seeked", () => {
     refreshTimes();
-    if (lock && link) void driveShow();
+    if (lock && link && !mirroringStage) void driveShow();
   });
   reaction.addEventListener("timeupdate", refreshTimes);
   reaction.addEventListener("loadedmetadata", refreshTimes);
@@ -234,6 +424,73 @@ export function mountPlayer(root: HTMLElement) {
 
   ui.volume.addEventListener("input", () => {
     reaction.volume = Number(ui.volume.value);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeFullscreenMenu();
+    if (event.repeat || isTypingTarget(event.target)) return;
+    if (event.key === " " || event.code === "Space") {
+      event.preventDefault();
+      if (!reaction.src) return;
+      if (reaction.paused) void reaction.play();
+      else reaction.pause();
+      if (reactionStageOpen) postToStage(stageInitPayload());
+      return;
+    }
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    seekReactionBy(event.key === "ArrowLeft" ? -KEY_SEEK_SECONDS : KEY_SEEK_SECONDS);
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!ui.fsMenu.contains(event.target as Node)) closeFullscreenMenu();
+  });
+
+  document.addEventListener("fullscreenchange", () => {
+    refreshFullscreenUi();
+  });
+  reaction.addEventListener("enterpictureinpicture", () => {
+    refreshFullscreenUi();
+  });
+  reaction.addEventListener("leavepictureinpicture", () => {
+    if (showWindowFullscreen) {
+      void transport.setWatchWindow("restore").then((reply) => {
+        showWindowFullscreen = false;
+        if (!reply.ok) setStatus(reply.error, "error");
+        refreshFullscreenUi();
+      });
+      return;
+    }
+    refreshFullscreenUi();
+  });
+
+  stageChannel.addEventListener("message", (event: MessageEvent<StageToPlayerMessage>) => {
+    const data = event.data;
+    if (!data || typeof data !== "object") return;
+    if (data.kind === "ready") {
+      if (reaction.src) postToStage(stageInitPayload());
+      return;
+    }
+    if (data.kind === "closed") {
+      if (!reactionStageOpen) return;
+      reactionStageOpen = false;
+      reaction.muted = false;
+      refreshFullscreenUi();
+      setStatus("Left fullscreen.", "");
+      return;
+    }
+    if (!reactionStageOpen) return;
+    mirroringStage = true;
+    if (typeof data.currentTime === "number") reaction.currentTime = data.currentTime;
+    if (data.kind === "play") {
+      reaction.muted = true;
+      if (reaction.paused) void reaction.play();
+    } else if (data.kind === "pause") {
+      if (!reaction.paused) reaction.pause();
+    }
+    window.setTimeout(() => {
+      mirroringStage = false;
+    }, 0);
   });
 
   transport.onPlayerEvent((reply) => {
@@ -266,10 +523,7 @@ export function mountPlayer(root: HTMLElement) {
 
   void restoreOffset();
   void transport.getLink().then((reply) => {
-    if (reply.ok) {
-      link = reply.link;
-      ui.linked.textContent = `${siteLabel(link.site)} · ${link.title}`;
-    }
+    if (reply.ok) applyLink(reply.link);
   });
 
   if (transport.mode === "demo") {
@@ -282,8 +536,8 @@ export function mountPlayer(root: HTMLElement) {
 function renderShell(mode: "extension" | "demo"): string {
   const demoHint =
     mode === "demo"
-      ? `<p class="hint">This preview talks to the <a href="/mock-streamer/" target="_blank" rel="noreferrer">mock streamer</a> in another tab. The Chrome extension uses the same controls against Netflix or JioHotstar.</p>`
-      : `<p class="hint">The reaction file is the master clock. After Sync, play, pause, and scrub here move the linked show tab.</p>`;
+      ? `<p class="hint">This preview talks to the <a href="/mock-streamer/" target="_blank" rel="noreferrer">mock streamer</a> in another tab. Left/Right skip 5 seconds. Fullscreen can enlarge the reaction or float it in Picture-in-Picture. Show-window fullscreen needs the Chrome extension.</p>`
+      : `<p class="hint">The reaction file is the master clock. After Sync, play, pause, Left/Right (5s), and scrub here move the linked show tab. Fullscreen can put the reaction or the show on the main display.</p>`;
 
   return `
     <header class="header">
@@ -307,6 +561,14 @@ function renderShell(mode: "extension" | "demo"): string {
       <label class="file-btn">Load reaction<input type="file" accept="video/*" data-file /></label>
       <button type="button" data-sample>Use sample clip</button>
       <button type="button" data-play disabled>Play</button>
+      <div class="fs-menu" data-fs-menu>
+        <button type="button" data-fs-toggle aria-expanded="false" aria-haspopup="true">Fullscreen</button>
+        <div class="fs-menu-panel" hidden data-fs-panel>
+          <button type="button" data-fs-reaction>Reaction as fullscreen</button>
+          <button type="button" data-fs-show disabled>Show as fullscreen</button>
+          <button type="button" data-fs-exit hidden>Exit fullscreen</button>
+        </div>
+      </div>
       <button type="button" class="primary" data-link>Link tab</button>
     </div>
     <p class="hint" data-file-name></p>
@@ -336,7 +598,16 @@ function bind(root: HTMLElement) {
   if (!video) throw new Error("Missing video element");
   const play = root.querySelector<HTMLButtonElement>("[data-play]");
   const fileInput = root.querySelector<HTMLInputElement>("[data-file]");
+  const fsToggle = root.querySelector<HTMLButtonElement>("[data-fs-toggle]");
+  const fsPanel = root.querySelector<HTMLElement>("[data-fs-panel]");
+  const fsMenu = root.querySelector<HTMLElement>("[data-fs-menu]");
+  const fsReaction = root.querySelector<HTMLButtonElement>("[data-fs-reaction]");
+  const fsShow = root.querySelector<HTMLButtonElement>("[data-fs-show]");
+  const fsExit = root.querySelector<HTMLButtonElement>("[data-fs-exit]");
   if (!play || !fileInput) throw new Error("Missing player controls");
+  if (!fsToggle || !fsPanel || !fsMenu || !fsReaction || !fsShow || !fsExit) {
+    throw new Error("Missing fullscreen controls");
+  }
 
   video.addEventListener("loadedmetadata", () => {
     play.disabled = false;
@@ -353,6 +624,12 @@ function bind(root: HTMLElement) {
     fileInput,
     sample: root.querySelector("[data-sample]") as HTMLButtonElement,
     play,
+    fsMenu,
+    fsToggle,
+    fsPanel,
+    fsReaction,
+    fsShow,
+    fsExit,
     link: root.querySelector("[data-link]") as HTMLButtonElement,
     fileName: root.querySelector("[data-file-name]") as HTMLElement,
     overlay: root.querySelector("[data-overlay]") as HTMLInputElement,

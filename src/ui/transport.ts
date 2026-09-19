@@ -4,6 +4,9 @@ import {
   type PlayerCommand,
   type PlayerReply,
   type RuntimeMessage,
+  type WatchWindowReply,
+  type WatchWindowState,
+  type StageWindowBounds,
 } from "../shared/messages";
 
 export type Transport = {
@@ -12,6 +15,9 @@ export type Transport = {
   linkActiveTab(): Promise<LinkReply>;
   getLink(): Promise<LinkReply>;
   clearLink(): Promise<void>;
+  setWatchWindow(state: WatchWindowState): Promise<WatchWindowReply>;
+  openReactionStage(bounds?: StageWindowBounds): Promise<WatchWindowReply>;
+  closeReactionStage(): Promise<WatchWindowReply>;
   onPlayerEvent(handler: (reply: PlayerReply) => void): () => void;
 };
 
@@ -36,6 +42,21 @@ function createExtensionTransport(): Transport {
     },
     async clearLink() {
       await chrome.runtime.sendMessage({ kind: "CLEAR_LINK" } satisfies RuntimeMessage);
+    },
+    setWatchWindow(state) {
+      return chrome.runtime.sendMessage({
+        kind: "SET_WATCH_WINDOW",
+        state,
+      } satisfies RuntimeMessage);
+    },
+    openReactionStage(bounds) {
+      return chrome.runtime.sendMessage({
+        kind: "OPEN_REACTION_STAGE",
+        bounds,
+      } satisfies RuntimeMessage);
+    },
+    closeReactionStage() {
+      return chrome.runtime.sendMessage({ kind: "CLOSE_REACTION_STAGE" } satisfies RuntimeMessage);
     },
     onPlayerEvent(handler) {
       const listener = (message: RuntimeMessage) => {
@@ -105,6 +126,29 @@ function createDemoTransport(): Transport {
     },
     async clearLink() {
       linked = false;
+    },
+    async setWatchWindow() {
+      return {
+        ok: false,
+        error:
+          "Show-window fullscreen is only in the Chrome extension. Use Reaction as fullscreen here, or Picture-in-Picture.",
+      };
+    },
+    async openReactionStage() {
+      const screen = window.screen as Screen & { availLeft?: number; availTop?: number };
+      const opened = window.open(
+        "/src/stage/index.html",
+        "reactionSyncStage",
+        `popup=yes,left=${screen.availLeft || 0},top=${screen.availTop || 0},width=${screen.availWidth},height=${screen.availHeight}`,
+      );
+      if (!opened) {
+        return { ok: false, error: "The browser blocked the fullscreen window. Allow popups for this page." };
+      }
+      return { ok: true };
+    },
+    async closeReactionStage() {
+      window.open("", "reactionSyncStage")?.close();
+      return { ok: true };
     },
     onPlayerEvent(handler) {
       const listener = (event: MessageEvent) => {

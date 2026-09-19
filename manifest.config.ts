@@ -27,7 +27,7 @@ export default defineManifest({
     service_worker: "src/background.ts",
     type: "module",
   },
-  permissions: ["storage", "tabs", "sidePanel"],
+  permissions: ["storage", "tabs", "sidePanel", "windows"],
   host_permissions: [
     "*://www.netflix.com/*",
     "*://netflix.com/*",

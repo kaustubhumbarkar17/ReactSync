@@ -17,6 +17,7 @@ export default defineConfig({
         main: resolve(__dirname, "index.html"),
         player: resolve(__dirname, "src/sidepanel/index.html"),
         mock: resolve(__dirname, "mock-streamer/index.html"),
+        stage: resolve(__dirname, "src/stage/index.html"),
       },
     },
   },

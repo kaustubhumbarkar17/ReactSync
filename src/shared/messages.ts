@@ -28,12 +28,26 @@ export type PlayerCommand =
   | { type: "PAUSE" }
   | { type: "SEEK"; seconds: number };
 
+export type WatchWindowState = "fullscreen" | "restore";
+
+export type WatchWindowReply = { ok: true } | { ok: false; error: string };
+
+export type StageWindowBounds = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
 export type RuntimeMessage =
   | { kind: "TO_PLAYER"; command: PlayerCommand }
   | { kind: "FROM_PLAYER"; reply: PlayerReply }
   | { kind: "LINK_ACTIVE_TAB" }
   | { kind: "GET_LINK" }
   | { kind: "CLEAR_LINK" }
+  | { kind: "SET_WATCH_WINDOW"; state: WatchWindowState }
+  | { kind: "OPEN_REACTION_STAGE"; bounds?: StageWindowBounds }
+  | { kind: "CLOSE_REACTION_STAGE" }
   | { kind: "PLAYER_EVENT"; reply: PlayerReply };
 
 export type LinkInfo = {

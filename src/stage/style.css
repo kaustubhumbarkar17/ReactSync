@@ -1,0 +1,30 @@
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: #000;
+  color: #9aa3b5;
+  font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+}
+
+video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  background: #000;
+}
+
+.hint {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  pointer-events: none;
+}
