@@ -1,5 +1,6 @@
 import type { PlayerCommand, PlayerReply, SiteId } from "../shared/messages";
 import { unlockPictureInPicture } from "../shared/pip";
+import { siteFromUrl } from "../shared/sites";
 
 export type Html5Finder = () => HTMLVideoElement | null;
 
@@ -104,9 +105,5 @@ function playErrorMessage(error: unknown): string {
 }
 
 function inferSite(): SiteId {
-  const host = location.hostname;
-  if (/(?:^|\.)netflix\.com$/i.test(host)) return "netflix";
-  if (/(?:^|\.)(?:jio)?hotstar\.com$/i.test(host)) return "hotstar";
-  if (/^(localhost|127\.0\.0\.1)$/i.test(host)) return "mock";
-  return "unknown";
+  return siteFromUrl(location.href);
 }

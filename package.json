@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Sync a local reaction video to Netflix or JioHotstar using the on-screen overlay timestamp.",
+  "description": "Sync a local reaction video to Netflix, JioHotstar, or Prime Video using the on-screen overlay timestamp.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

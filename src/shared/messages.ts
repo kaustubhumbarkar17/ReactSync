@@ -2,7 +2,7 @@ export const CHANNEL_NAME = "reaction-sync";
 export const NETFLIX_CMD = "reaction-sync:cmd";
 export const NETFLIX_RES = "reaction-sync:res";
 
-export type SiteId = "netflix" | "hotstar" | "mock" | "unknown";
+export type SiteId = "netflix" | "hotstar" | "prime" | "mock" | "unknown";
 
 export type PlayerState = {
   ok: true;

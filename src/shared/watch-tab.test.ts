@@ -14,6 +14,18 @@ describe("pickWatchTab", () => {
     lastAccessed: 20,
     active: true,
   };
+  const prime = {
+    url: "https://www.primevideo.com/detail/0ABC",
+    windowId: 3,
+    lastAccessed: 30,
+    active: true,
+  };
+  const amazonShop = {
+    url: "https://www.amazon.com/dp/B09J6T2D3M",
+    windowId: 4,
+    lastAccessed: 40,
+    active: true,
+  };
   const stage = {
     url: "chrome-extension://id/src/stage/index.html",
     windowId: 99,
@@ -40,5 +52,9 @@ describe("pickWatchTab", () => {
 
   it("returns undefined when no watch tab exists", () => {
     expect(pickWatchTab([stage], { stageWindowId: 99 })).toBeUndefined();
+  });
+
+  it("picks Prime Video and ignores Amazon shopping tabs", () => {
+    expect(pickWatchTab([amazonShop, prime, stage], { stageWindowId: 99 })).toBe(prime);
   });
 });

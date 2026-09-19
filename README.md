@@ -2,9 +2,9 @@
 
 Keep a local reaction video lined up with the show you already pay for.
 
-Reaction and watch-along videos burn a show clock on screen. This Chrome/Edge extension plays that local reaction as the **master clock**. You type the overlay time (or press Sync), and Netflix or JioHotstar jumps to match. After that, play, pause, and scrub on the reaction move the streaming tab.
+Reaction and watch-along videos burn a show clock on screen. This Chrome/Edge extension plays that local reaction as the **master clock**. You type the overlay time (or press Sync), and Netflix, JioHotstar, or Prime Video jumps to match. After that, play, pause, and scrub on the reaction move the streaming tab.
 
-A normal website cannot do this. Netflix blocks `video.currentTime` writes (error M7375). The extension drives Netflix through its unofficial page player API, and JioHotstar through the content `<video>` element.
+A normal website cannot do this. Netflix blocks `video.currentTime` writes (error M7375). The extension drives Netflix through its unofficial page player API, and JioHotstar and Prime Video through the content `<video>` element.
 
 ## Use it against a real streamer
 
@@ -18,7 +18,7 @@ A normal website cannot do this. Netflix blocks `video.currentTime` writes (erro
 
 2. In Chrome or Edge, open `chrome://extensions`, turn on **Developer mode**, and click **Load unpacked**. Choose the `dist/` folder.
 
-3. Open a title on [Netflix](https://www.netflix.com) or [JioHotstar](https://www.jiohotstar.com) and start playback once so the player exists.
+3. Open a title on [Netflix](https://www.netflix.com), [JioHotstar](https://www.jiohotstar.com), or [Prime Video](https://www.primevideo.com) and start playback once so the player exists.
 
 4. Click the Reaction Sync icon. The side panel opens.
 
@@ -48,6 +48,7 @@ Open the printed local URL. That preview is the same player UI talking to a mock
 | Local reaction | File picker + blob URL in the side panel |
 | Netflix | MAIN-world `netflix.appContext...videoPlayer` `play` / `pause` / `seek(ms)` |
 | JioHotstar | `#video-container video` — never the ad player |
+| Prime Video | `.rendererContainer video` (and the DV web player) — skip ad nodes |
 | Mock streamer | Same HTML5 path as Hotstar, plus a demo BroadcastChannel |
 
 Known limits:
@@ -55,7 +56,7 @@ Known limits:
 - Netflix's player API is unofficial. A site rewrite can break seeks until the adapter is patched.
 - Ads, recap prompts, and quality changes can replace the video node. Adapters re-bind, but you may need to Link tab again.
 - Region intros and credit skips are not mapped. Nudge or re-sync.
-- This repo cannot log into Netflix or Hotstar for you. Confirm those on your own account after loading `dist/`.
+- This repo cannot log into Netflix, Hotstar, or Prime Video for you. Confirm those on your own account after loading `dist/`.
 
 ## Scripts
 

@@ -615,7 +615,7 @@ export function mountPlayer(root: HTMLElement) {
   if (transport.mode === "demo") {
     setStatus("Demo mode. Open the mock streamer, then load a reaction to go fullscreen.", "");
   } else {
-    setStatus("Load a reaction to go fullscreen. Link Netflix or JioHotstar from Options.", "");
+    setStatus("Load a reaction to go fullscreen. Link Netflix, JioHotstar, or Prime Video from Options.", "");
   }
 }
 

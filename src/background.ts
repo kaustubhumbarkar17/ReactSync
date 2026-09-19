@@ -67,7 +67,7 @@ async function setLink(tab: chrome.tabs.Tab): Promise<LinkReply> {
   if (!isSupportedWatchUrl(tab.url)) {
     return {
       ok: false,
-      error: "Open Netflix, JioHotstar, or the mock streamer, then link that tab.",
+      error: "Open Netflix, JioHotstar, Prime Video, or the mock streamer, then link that tab.",
     };
   }
 
@@ -173,7 +173,7 @@ async function closeReactionStage(): Promise<WatchWindowReply> {
 async function setWatchWindow(state: WatchWindowState): Promise<WatchWindowReply> {
   const link = await getLink();
   if (!link) {
-    return { ok: false, error: "Link a Netflix or JioHotstar tab first." };
+    return { ok: false, error: "Link a Netflix, JioHotstar, or Prime Video tab first." };
   }
 
   try {
@@ -218,7 +218,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
       if (!tab) {
         sendResponse({
           ok: false,
-          error: "Open Netflix or JioHotstar in a browser tab, then press Link tab again.",
+          error: "Open Netflix, JioHotstar, or Prime Video in a browser tab, then press Link tab again.",
         } satisfies LinkReply);
         return;
       }
@@ -257,7 +257,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
   if (message.kind === "TO_PLAYER") {
     void getLink().then(async (link) => {
       if (!link) {
-        sendResponse({ ok: false, error: "Link a Netflix or JioHotstar tab first." } satisfies PlayerReply);
+        sendResponse({ ok: false, error: "Link a Netflix, JioHotstar, or Prime Video tab first." } satisfies PlayerReply);
         return;
       }
       sendResponse(await sendToTab(link.tabId, message.command));

@@ -1,11 +1,12 @@
 import { defineManifest } from "@crxjs/vite-plugin";
+import { PRIME_MATCHES } from "./src/shared/sites";
 
 export default defineManifest({
   manifest_version: 3,
   name: "Reaction Sync",
   version: "0.1.0",
   description:
-    "Play a local reaction as the master clock and keep Netflix or JioHotstar on the overlay timestamp.",
+    "Play a local reaction as the master clock and keep Netflix, JioHotstar, or Prime Video on the overlay timestamp.",
   icons: {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -35,6 +36,7 @@ export default defineManifest({
     "*://hotstar.com/*",
     "*://www.jiohotstar.com/*",
     "*://jiohotstar.com/*",
+    ...PRIME_MATCHES,
     "http://127.0.0.1/*",
     "http://localhost/*",
   ],
@@ -58,6 +60,11 @@ export default defineManifest({
         "*://jiohotstar.com/*",
       ],
       js: ["src/content/hotstar.ts"],
+      run_at: "document_idle",
+    },
+    {
+      matches: PRIME_MATCHES,
+      js: ["src/content/prime.ts"],
       run_at: "document_idle",
     },
     {
