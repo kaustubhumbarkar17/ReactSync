@@ -1,0 +1,21 @@
+{
+  "name": "reaction-sync",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Sync a local reaction video to Netflix or JioHotstar using the on-screen overlay timestamp.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "demo": "vite --config vite.demo.config.ts --host 127.0.0.1 --port 43173"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.2.0",
+    "@types/chrome": "^0.1.11",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "vitest": "^3.2.4"
+  }
+}

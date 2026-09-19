@@ -1,0 +1,212 @@
+:root {
+  color-scheme: dark;
+  --bg: #101218;
+  --bg-raise: #181c26;
+  --line: #2a3140;
+  --text: #f3f1ea;
+  --muted: #9aa3b5;
+  --gold: #e4b54a;
+  --gold-dim: #8a6c22;
+  --danger: #ef6b6b;
+  --ok: #7dce9a;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  min-width: 320px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+}
+
+.header p,
+.hint,
+.status,
+.empty {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.video-shell {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #000;
+  border: 1px solid var(--line);
+  aspect-ratio: 16 / 10;
+  box-shadow: var(--shadow);
+}
+
+.video-shell video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.video-shell.empty-video {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.clock {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.72);
+  color: var(--gold);
+  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+.row,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  flex: 1 1 160px;
+}
+
+input[type="text"],
+input[type="range"] {
+  width: 100%;
+}
+
+input[type="text"] {
+  border: 1px solid var(--line);
+  background: var(--bg-raise);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+input[type="text"]:focus {
+  outline: 2px solid var(--gold-dim);
+}
+
+button,
+.file-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--bg-raise);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--gold);
+  color: #1b1406;
+  border-color: transparent;
+  font-weight: 650;
+}
+
+button:disabled,
+.file-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-btn input {
+  display: none;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.times {
+  display: flex;
+  justify-content: space-between;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.status {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+}
+
+.status.error {
+  border-color: #5a2a2a;
+  color: var(--danger);
+}
+
+.status.ok {
+  border-color: #24533a;
+}
+
+.nudge button {
+  min-width: 64px;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+a {
+  color: var(--gold);
+}
+
+@media (max-width: 560px) {
+  .app {
+    padding: 12px;
+  }
+
+  button,
+  .file-btn {
+    flex: 1 1 calc(50% - 8px);
+  }
+}

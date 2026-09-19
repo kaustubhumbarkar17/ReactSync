@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock streamer · Reaction Sync</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <p class="brand">Mockflix</p>
+      <p class="sub">Stand-in for Netflix / JioHotstar so you can prove the lock without DRM.</p>
+    </header>
+    <main>
+      <div id="video-container">
+        <video
+          id="show"
+          data-reaction-sync="show"
+          playsinline
+          controls
+          muted
+          preload="auto"
+          src="./show.mp4"
+        ></video>
+        <div class="overlay" data-clock>0:00</div>
+      </div>
+      <aside>
+        <h1>Watch tab</h1>
+        <p>
+          Leave this page open. In the reaction player, press <strong>Link tab</strong>, type an overlay
+          time, then <strong>Sync</strong>. Scrubbing the reaction should jump this video.
+        </p>
+        <dl>
+          <div>
+            <dt>Player</dt>
+            <dd data-state>Idle</dd>
+          </div>
+          <div>
+            <dt>Current time</dt>
+            <dd data-time>0:00</dd>
+          </div>
+        </dl>
+        <p class="note">
+          This tab plays a local 90-second test pattern with a burned-in SHOW clock. It starts muted so
+          the reaction player can start it from the other tab. Unmute here if you want the tone.
+        </p>
+      </aside>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
