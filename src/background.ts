@@ -8,6 +8,7 @@ import type {
   WatchWindowState,
 } from "./shared/messages";
 import { isSupportedWatchUrl, siteFromUrl } from "./shared/sites";
+import { pickWatchTab } from "./shared/watch-tab";
 
 const LINK_KEY = "linkedTab";
 const WINDOW_STATE_KEY = "watchWindowPriorState";
@@ -40,6 +41,23 @@ async function getLink(): Promise<LinkInfo | null> {
     await chrome.storage.session.remove(LINK_KEY);
     return null;
   }
+}
+
+async function findWatchTab(): Promise<chrome.tabs.Tab | undefined> {
+  const stored = await chrome.storage.session.get(STAGE_WINDOW_KEY);
+  const stageWindowId = stored[STAGE_WINDOW_KEY] as number | undefined;
+  let lastFocusedNormalWindowId: number | undefined;
+  try {
+    const lastNormal = await chrome.windows.getLastFocused({
+      windowTypes: ["normal"],
+    });
+    lastFocusedNormalWindowId = lastNormal.id;
+  } catch {
+    /* no normal browser window */
+  }
+
+  const tabs = await chrome.tabs.query({});
+  return pickWatchTab(tabs, { stageWindowId, lastFocusedNormalWindowId });
 }
 
 async function setLink(tab: chrome.tabs.Tab): Promise<LinkReply> {
@@ -196,10 +214,12 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
   if (message.kind === "LINK_ACTIVE_TAB") {
-    void chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(async (tabs) => {
-      const tab = tabs[0];
+    void findWatchTab().then(async (tab) => {
       if (!tab) {
-        sendResponse({ ok: false, error: "No active tab to link." } satisfies LinkReply);
+        sendResponse({
+          ok: false,
+          error: "Open Netflix or JioHotstar in a browser tab, then press Link tab again.",
+        } satisfies LinkReply);
         return;
       }
       sendResponse(await setLink(tab));

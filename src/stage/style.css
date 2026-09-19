@@ -1,3 +1,11 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 html,
 body {
   margin: 0;
@@ -6,25 +14,247 @@ body {
   height: 100dvh;
   overflow: hidden;
   background: #000;
-  color: #9aa3b5;
-  font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  color: #f5f5f5;
+  font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 }
 
 video {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center;
+  object-fit: contain;
   background: #000;
 }
 
-.hint {
-  position: fixed;
-  left: 12px;
-  bottom: 12px;
-  margin: 0;
-  font-size: 0.8rem;
-  opacity: 0.7;
+.hud {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px 18px 14px;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.hud.visible,
+.hud.open {
+  opacity: 1;
+}
+
+.top,
+.bottom,
+.options,
+.panel,
+.play,
+.nudge button,
+.row-btn,
+.go {
+  pointer-events: auto;
+}
+
+.top,
+.bottom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.top {
+  justify-content: space-between;
+}
+
+.show-clock {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #000000b3;
+  color: #e8e8e8;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+}
+
+.menu {
+  position: relative;
+}
+
+.options,
+.row-btn,
+.go,
+.nudge button,
+.play {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.options {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #141414d9;
+  font-size: 13px;
+}
+
+.options[aria-expanded="true"] {
+  background: #1f1f1f;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(280px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #141414f2;
+  border: 1px solid #2a2a2a;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.row-btn,
+.nudge button {
+  background: #1f1f1f;
+  border-radius: 7px;
+  min-height: 32px;
+}
+
+.row-btn {
+  width: 100%;
+  text-align: left;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.meta,
+.status,
+.label,
+.field {
+  margin: 0;
+  font-size: 12px;
+  color: #b3b3b3;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sync-row {
+  display: flex;
+  gap: 6px;
+}
+
+.sync-row input,
+.volume input {
+  width: 100%;
+}
+
+.sync-row input {
+  border: 1px solid #2a2a2a;
+  background: #0b0b0b;
+  color: #f5f5f5;
+  border-radius: 7px;
+  padding: 7px 8px;
+  font: inherit;
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+.go {
+  flex: 0 0 auto;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: #e50914;
+  color: #fff;
+  font-weight: 650;
+  font-size: 13px;
+}
+
+.nudge {
+  display: flex;
+  gap: 6px;
+}
+
+.nudge button {
+  flex: 1;
+  padding: 0 4px;
+  font-size: 12px;
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+.nudge button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.volume input[type="range"],
+.bottom input[type="range"] {
+  accent-color: #e50914;
+}
+
+.status.ok {
+  color: #7dce9a;
+}
+
+.status.error {
+  color: #ef6b6b;
+}
+
+.bottom {
+  padding: 10px 6px 2px;
+  background: linear-gradient(transparent, #000000cc 55%);
+  margin: 0 -18px -14px;
+  padding-left: 18px;
+  padding-right: 18px;
+  padding-bottom: 16px;
+}
+
+.play {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e50914;
+  position: relative;
+}
+
+.play::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 11px;
+  border-style: solid;
+  border-width: 7px 0 7px 11px;
+  border-color: transparent transparent transparent #fff;
+}
+
+.play.is-playing::before {
+  left: 12px;
+  top: 11px;
+  width: 4px;
+  height: 14px;
+  border: 0;
+  background: #fff;
+  box-shadow: 8px 0 0 #fff;
+}
+
+.time {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  color: #d4d4d4;
+  min-width: 3.2em;
+}
+
+.bottom input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  height: 4px;
 }

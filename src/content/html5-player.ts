@@ -1,4 +1,5 @@
 import type { PlayerCommand, PlayerReply, SiteId } from "../shared/messages";
+import { unlockPictureInPicture } from "../shared/pip";
 
 export type Html5Finder = () => HTMLVideoElement | null;
 
@@ -60,6 +61,7 @@ export function watchHtml5Player(
     if (attached === video) return;
     detach();
     attached = video;
+    unlockPictureInPicture(video);
     for (const event of ["play", "pause", "seeking", "seeked", "waiting", "playing", "ended"] as const) {
       video.addEventListener(event, notify);
     }

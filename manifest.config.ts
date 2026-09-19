@@ -48,7 +48,7 @@ export default defineManifest({
       matches: ["*://www.netflix.com/*", "*://netflix.com/*"],
       js: ["src/content/netflix-main.ts"],
       world: "MAIN",
-      run_at: "document_idle",
+      run_at: "document_start",
     },
     {
       matches: [

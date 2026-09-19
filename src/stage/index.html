@@ -3,12 +3,61 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Reaction · fullscreen</title>
+    <title>Reaction</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <video playsinline data-stage></video>
-    <p class="hint">Space plays or pauses. Left / Right skip 5 seconds. Esc exits fullscreen.</p>
+    <div class="hud visible" data-hud>
+      <div class="top">
+        <span class="show-clock" data-show-clock>Show --:--</span>
+        <div class="menu" data-menu>
+          <button type="button" class="options" data-menu-toggle aria-expanded="false" aria-haspopup="true">
+            Options
+          </button>
+          <div class="panel" hidden data-panel>
+            <button type="button" class="row-btn" data-link>Link tab</button>
+            <p class="meta"><span data-linked>No tab linked</span> · <span data-offset>not locked</span></p>
+
+            <label class="field">
+              Timestamp
+              <span class="sync-row">
+                <input type="text" inputmode="numeric" placeholder="1:23:45" data-overlay />
+                <button type="button" class="go" data-sync>Sync</button>
+              </span>
+            </label>
+
+            <div class="nudge" role="group" aria-label="Nudge offset">
+              <button type="button" data-nudge="-1">−1s</button>
+              <button type="button" data-nudge="-0.1">−0.1s</button>
+              <button type="button" data-nudge="0.1">+0.1s</button>
+              <button type="button" data-nudge="1">+1s</button>
+            </div>
+
+            <label class="field volume">
+              Reaction volume
+              <input type="range" min="0" max="1" step="0.01" value="1" data-volume />
+            </label>
+
+            <p class="label">Fullscreen</p>
+            <div class="nudge">
+              <button type="button" data-present="reaction">Reaction</button>
+              <button type="button" data-present="show" data-fs-show disabled>Show</button>
+              <button type="button" data-present="exit" data-fs-exit>Leave</button>
+            </div>
+
+            <p class="status" data-status></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom">
+        <button type="button" class="play" data-play aria-label="Play"></button>
+        <span class="time" data-now>0:00</span>
+        <input type="range" min="0" max="0" value="0" step="0.05" data-timeline aria-label="Reaction timeline" />
+        <span class="time" data-duration>0:00</span>
+      </div>
+    </div>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

@@ -136,11 +136,10 @@ function createDemoTransport(): Transport {
     },
     async openReactionStage() {
       const screen = window.screen as Screen & { availLeft?: number; availTop?: number };
-      const opened = window.open(
-        "/src/stage/index.html",
-        "reactionSyncStage",
-        `popup=yes,left=${screen.availLeft || 0},top=${screen.availTop || 0},width=${screen.availWidth},height=${screen.availHeight}`,
-      );
+      const features = `popup=yes,left=${screen.availLeft || 0},top=${screen.availTop || 0},width=${screen.availWidth},height=${screen.availHeight}`;
+      const opened =
+        window.open("/src/stage/index.html", "reactionSyncStage", features) ||
+        window.open("/src/stage/index.html", "reactionSyncStage");
       if (!opened) {
         return { ok: false, error: "The browser blocked the fullscreen window. Allow popups for this page." };
       }

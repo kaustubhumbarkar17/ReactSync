@@ -1,4 +1,5 @@
 import { NETFLIX_CMD, NETFLIX_RES } from "../shared/messages";
+import { installPictureInPictureUnlock, unlockAllVideos } from "../shared/pip";
 
 type NetflixPlayer = {
   play: () => void;
@@ -12,6 +13,8 @@ type CommandDetail = {
   type: "PING" | "GET_STATE" | "PLAY" | "PAUSE" | "SEEK";
   seconds?: number;
 };
+
+installPictureInPictureUnlock();
 
 function getPlayer(): NetflixPlayer | null {
   const root = (window as unknown as { netflix?: unknown }).netflix as
@@ -51,23 +54,8 @@ function findVideo(): HTMLVideoElement | null {
   );
 }
 
-function readState() {
-  const video = findVideo();
-  const player = getPlayer();
-  if (!video && !player) {
-    return { ok: false as const, error: "Netflix player is not ready. Open a title and press play once." };
-  }
-
-  const currentTime = video?.currentTime ?? 0;
-  return {
-    ok: true as const,
-    site: "netflix" as const,
-    playing: video ? !video.paused && !video.ended : false,
-    buffering: video ? video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA && !video.paused : false,
-    currentTime,
-    duration: video && Number.isFinite(video.duration) ? video.duration : 0,
-    ready: Boolean(player || (video && video.readyState >= HTMLMediaElement.HAVE_METADATA)),
-  };
+function unlockNetflixPip() {
+  unlockAllVideos();
 }
 
 window.addEventListener(NETFLIX_CMD, (event) => {
@@ -101,3 +89,34 @@ window.addEventListener(NETFLIX_CMD, (event) => {
     );
   }
 });
+
+const root = document.documentElement;
+if (root) {
+  new MutationObserver(unlockNetflixPip).observe(root, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["disablepictureinpicture"],
+  });
+}
+window.setInterval(unlockNetflixPip, 250);
+unlockNetflixPip();
+
+function readState() {
+  const video = findVideo();
+  const player = getPlayer();
+  if (!video && !player) {
+    return { ok: false as const, error: "Netflix player is not ready. Open a title and press play once." };
+  }
+
+  const currentTime = video?.currentTime ?? 0;
+  return {
+    ok: true as const,
+    site: "netflix" as const,
+    playing: video ? !video.paused && !video.ended : false,
+    buffering: video ? video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA && !video.paused : false,
+    currentTime,
+    duration: video && Number.isFinite(video.duration) ? video.duration : 0,
+    ready: Boolean(player || (video && video.readyState >= HTMLMediaElement.HAVE_METADATA)),
+  };
+}

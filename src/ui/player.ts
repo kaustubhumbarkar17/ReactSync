@@ -56,11 +56,13 @@ export function mountPlayer(root: HTMLElement) {
   let showWindowFullscreen = false;
   let reactionStageOpen = false;
   let mirroringStage = false;
+  let lastHudAt = 0;
   const stageChannel = new BroadcastChannel(STAGE_CHANNEL);
 
   const setStatus = (text: string, kind: "ok" | "error" | "" = "") => {
     ui.status.textContent = text;
     ui.status.className = `status ${kind}`.trim();
+    pushHud(true);
   };
 
   const persistOffset = () => {
@@ -94,6 +96,7 @@ export function mountPlayer(root: HTMLElement) {
     ui.showClock.textContent = lock
       ? `Show ${formatTimestamp(showTimeFor(reaction.currentTime || 0, lock))}`
       : "Show --:--";
+    pushHud();
   };
 
   const refreshTimes = () => {
@@ -182,11 +185,13 @@ export function mountPlayer(root: HTMLElement) {
       ui.linked.textContent = "No tab linked";
       ui.fsShow.disabled = true;
       ui.fsShow.textContent = "Show as fullscreen";
+      pushHud(true);
       return;
     }
     ui.linked.textContent = `${siteLabel(link.site)} · ${link.title}`;
     ui.fsShow.disabled = false;
     ui.fsShow.textContent = `${siteLabel(link.site)} as fullscreen`;
+    pushHud(true);
   };
 
   const linkTab = async () => {
@@ -220,6 +225,7 @@ export function mountPlayer(root: HTMLElement) {
       reactionIsFullscreen() || showWindowFullscreen || reactionIsPip() || reactionStageOpen;
     ui.fsExit.hidden = !active;
     ui.fsToggle.textContent = active ? "Exit fullscreen" : "Fullscreen";
+    pushHud(true);
   };
 
   const postToStage = (message: PlayerToStageMessage) => {
@@ -233,6 +239,32 @@ export function mountPlayer(root: HTMLElement) {
     paused: reaction.paused,
     volume: reaction.volume,
   });
+
+  const pushHud = (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastHudAt < 200) return;
+    lastHudAt = now;
+    const kind: "ok" | "error" | "" = ui.status.classList.contains("error")
+      ? "error"
+      : ui.status.classList.contains("ok")
+        ? "ok"
+        : "";
+    postToStage({
+      kind: "hud",
+      overlay: ui.overlay.value,
+      offsetLabel: ui.offset.textContent || "not locked",
+      showClock: ui.showClock.textContent || "Show --:--",
+      linkedLabel: ui.linked.textContent || "No tab linked",
+      status: ui.status.textContent || "",
+      statusKind: kind,
+      volume: reaction.volume,
+      showFullscreenEnabled: Boolean(link),
+      presenting: activePresent(),
+    });
+  };
+
+  const activePresent = () =>
+    reactionIsFullscreen() || showWindowFullscreen || reactionIsPip() || reactionStageOpen;
 
   const leaveReactionStage = async () => {
     if (!reactionStageOpen) return;
@@ -271,9 +303,14 @@ export function mountPlayer(root: HTMLElement) {
     }
     reactionStageOpen = true;
     reaction.muted = true;
+    ui.openStage.disabled = false;
     postToStage(stageInitPayload());
+    pushHud(true);
     window.setTimeout(() => {
-      if (reactionStageOpen) postToStage(stageInitPayload());
+      if (reactionStageOpen) {
+        postToStage(stageInitPayload());
+        pushHud(true);
+      }
     }, 250);
     setStatus("Reaction is fullscreen. Esc or Exit fullscreen to leave.", "ok");
     refreshFullscreenUi();
@@ -302,7 +339,9 @@ export function mountPlayer(root: HTMLElement) {
     if (reactionIsFullscreen()) {
       await document.exitFullscreen().catch(() => undefined);
     }
+    ui.videoShell.classList.remove("empty-video");
     try {
+      if (reaction.paused) await reaction.play();
       if (!reactionIsPip()) await reaction.requestPictureInPicture();
     } catch {
       setStatus("Could not open Picture-in-Picture. Allow it and try again.", "error");
@@ -348,7 +387,9 @@ export function mountPlayer(root: HTMLElement) {
     ui.videoShell.classList.remove("empty-video");
     ui.empty.hidden = true;
     ui.fileName.textContent = file.name;
-    setStatus("Reaction loaded. Link the show tab, then lock the overlay time.", "");
+    ui.openStage.disabled = false;
+    setStatus("Reaction opened fullscreen. Use Options to link, type the timestamp, and sync.", "");
+    void openReactionStageWindow();
   };
 
   ui.fileInput.addEventListener("change", () => {
@@ -365,7 +406,9 @@ export function mountPlayer(root: HTMLElement) {
     ui.videoShell.classList.remove("empty-video");
     ui.empty.hidden = true;
     ui.fileName.textContent = "Sample reaction (local overlay clip)";
-    setStatus("Sample loaded. Link the show tab, then lock the overlay time.", "");
+    ui.openStage.disabled = false;
+    setStatus("Reaction opened fullscreen. Use Options to link, type the timestamp, and sync.", "");
+    void openReactionStageWindow();
   });
 
   ui.play.addEventListener("click", () => {
@@ -384,6 +427,7 @@ export function mountPlayer(root: HTMLElement) {
   ui.fsReaction.addEventListener("click", () => void enterReactionFullscreen());
   ui.fsShow.addEventListener("click", () => void enterShowFullscreen());
   ui.fsExit.addEventListener("click", () => void exitPresentModes());
+  ui.openStage.addEventListener("click", () => void enterReactionFullscreen());
 
   ui.sync.addEventListener("click", () => void syncFromOverlay());
   ui.link.addEventListener("click", () => void linkTab());
@@ -468,7 +512,13 @@ export function mountPlayer(root: HTMLElement) {
     const data = event.data;
     if (!data || typeof data !== "object") return;
     if (data.kind === "ready") {
-      if (reaction.src) postToStage(stageInitPayload());
+      if (reaction.src) {
+        reactionStageOpen = true;
+        reaction.muted = true;
+        ui.openStage.disabled = false;
+        postToStage(stageInitPayload());
+        pushHud(true);
+      }
       return;
     }
     if (data.kind === "closed") {
@@ -477,6 +527,39 @@ export function mountPlayer(root: HTMLElement) {
       reaction.muted = false;
       refreshFullscreenUi();
       setStatus("Left fullscreen.", "");
+      return;
+    }
+    if (data.kind === "link") {
+      void linkTab();
+      return;
+    }
+    if (data.kind === "linked") {
+      void transport.getLink().then((reply) => {
+        if (reply.ok) {
+          applyLink(reply.link);
+          setStatus(`Linked ${siteLabel(reply.link.site)}. Type the overlay time and press Sync.`, "ok");
+        }
+      });
+      return;
+    }
+    if (data.kind === "sync") {
+      ui.overlay.value = data.overlay;
+      void syncFromOverlay();
+      return;
+    }
+    if (data.kind === "nudge") {
+      void nudge(data.delta);
+      return;
+    }
+    if (data.kind === "volume") {
+      reaction.volume = data.volume;
+      ui.volume.value = String(data.volume);
+      return;
+    }
+    if (data.kind === "present") {
+      if (data.mode === "show") void enterShowFullscreen();
+      else if (data.mode === "exit") void exitPresentModes();
+      else void enterReactionFullscreen();
       return;
     }
     if (!reactionStageOpen) return;
@@ -500,12 +583,15 @@ export function mountPlayer(root: HTMLElement) {
       ui.resumeAfterBuffer = true;
       reaction.pause();
       applyingRemote = false;
+      if (reactionStageOpen) postToStage(stageInitPayload());
       setStatus("Show is buffering. Reaction paused until it catches up.", "");
       return;
     }
     if (!reply.buffering && reaction.paused && ui.resumeAfterBuffer) {
       ui.resumeAfterBuffer = false;
-      void reaction.play();
+      void reaction.play().then(() => {
+        if (reactionStageOpen) postToStage(stageInitPayload());
+      });
     }
   });
 
@@ -527,69 +613,73 @@ export function mountPlayer(root: HTMLElement) {
   });
 
   if (transport.mode === "demo") {
-    setStatus("Demo mode. Open the mock streamer in another tab, then press Link tab.", "");
+    setStatus("Demo mode. Open the mock streamer, then load a reaction to go fullscreen.", "");
   } else {
-    setStatus("Open Netflix or JioHotstar, press Link tab, then lock the overlay time.", "");
+    setStatus("Load a reaction to go fullscreen. Link Netflix or JioHotstar from Options.", "");
   }
 }
 
 function renderShell(mode: "extension" | "demo"): string {
   const demoHint =
     mode === "demo"
-      ? `<p class="hint">This preview talks to the <a href="/mock-streamer/" target="_blank" rel="noreferrer">mock streamer</a> in another tab. Left/Right skip 5 seconds. Fullscreen can enlarge the reaction or float it in Picture-in-Picture. Show-window fullscreen needs the Chrome extension.</p>`
-      : `<p class="hint">The reaction file is the master clock. After Sync, play, pause, Left/Right (5s), and scrub here move the linked show tab. Fullscreen can put the reaction or the show on the main display.</p>`;
+      ? `<p class="hint">Open the <a href="/mock-streamer/" target="_blank" rel="noreferrer">mock streamer</a> in another tab first. After the reaction goes fullscreen, use Options to link and sync.</p>`
+      : `<p class="hint">Load a reaction to open it fullscreen. Link the show, type the burned-in timestamp, and sync from Options.</p>`;
 
   return `
     <header class="header">
       <h1>Reaction Sync</h1>
-      <p>Load the reaction that shows the show clock. Type that overlay time, press Sync, then this timeline drives the streamer.</p>
       ${demoHint}
     </header>
-    <div class="video-shell empty-video" data-video-shell>
-      <video playsinline></video>
-      <div class="clock" data-show-clock>Show --:--</div>
-      <p class="empty" data-empty>No reaction loaded yet. Pick a local file, or use the sample clip to try the lock.</p>
-    </div>
-    <div class="times">
-      <span data-now>0:00</span>
-      <span data-duration>0:00</span>
-    </div>
-    <div class="timeline">
-      <input type="range" min="0" max="0" value="0" step="0.05" data-timeline />
-    </div>
-    <div class="actions">
+    <div class="import">
       <label class="file-btn">Load reaction<input type="file" accept="video/*" data-file /></label>
       <button type="button" data-sample>Use sample clip</button>
-      <button type="button" data-play disabled>Play</button>
-      <div class="fs-menu" data-fs-menu>
-        <button type="button" data-fs-toggle aria-expanded="false" aria-haspopup="true">Fullscreen</button>
-        <div class="fs-menu-panel" hidden data-fs-panel>
-          <button type="button" data-fs-reaction>Reaction as fullscreen</button>
-          <button type="button" data-fs-show disabled>Show as fullscreen</button>
-          <button type="button" data-fs-exit hidden>Exit fullscreen</button>
-        </div>
-      </div>
-      <button type="button" class="primary" data-link>Link tab</button>
+      <button type="button" class="primary" data-open-stage disabled>Open fullscreen</button>
     </div>
     <p class="hint" data-file-name></p>
-    <div class="row">
-      <label>Overlay time on the reaction
-        <input type="text" inputmode="numeric" placeholder="1:23:45" data-overlay />
-      </label>
-      <button type="button" class="primary" data-sync>Sync</button>
-    </div>
-    <div class="row nudge">
-      <button type="button" data-nudge="-1">−1s</button>
-      <button type="button" data-nudge="-0.1">−0.1s</button>
-      <button type="button" data-nudge="0.1">+0.1s</button>
-      <button type="button" data-nudge="1">+1s</button>
-    </div>
-    <div class="volume">
-      <span>Reaction volume</span>
-      <input type="range" min="0" max="1" step="0.01" value="1" data-volume />
-    </div>
     <div class="status" data-status>Waiting for a reaction file.</div>
     <p class="hint">Linked: <span data-linked>No tab linked</span> · Offset: <span data-offset>not locked</span></p>
+    <div class="engine">
+      <div class="video-shell empty-video" data-video-shell>
+        <video playsinline></video>
+        <div class="clock" data-show-clock>Show --:--</div>
+        <p class="empty" data-empty>No reaction loaded yet. Pick a local file, or use the sample clip to try the lock.</p>
+      </div>
+      <div class="times">
+        <span data-now>0:00</span>
+        <span data-duration>0:00</span>
+      </div>
+      <div class="timeline">
+        <input type="range" min="0" max="0" value="0" step="0.05" data-timeline />
+      </div>
+      <div class="actions">
+        <button type="button" data-play disabled>Play</button>
+        <div class="fs-menu" data-fs-menu>
+          <button type="button" data-fs-toggle aria-expanded="false" aria-haspopup="true">Fullscreen</button>
+          <div class="fs-menu-panel" hidden data-fs-panel>
+            <button type="button" data-fs-reaction>Reaction as fullscreen</button>
+            <button type="button" data-fs-show disabled>Show as fullscreen</button>
+            <button type="button" data-fs-exit hidden>Exit fullscreen</button>
+          </div>
+        </div>
+        <button type="button" class="primary" data-link>Link tab</button>
+      </div>
+      <div class="row">
+        <label>Overlay time on the reaction
+          <input type="text" inputmode="numeric" placeholder="1:23:45" data-overlay />
+        </label>
+        <button type="button" class="primary" data-sync>Sync</button>
+      </div>
+      <div class="row nudge">
+        <button type="button" data-nudge="-1">−1s</button>
+        <button type="button" data-nudge="-0.1">−0.1s</button>
+        <button type="button" data-nudge="0.1">+0.1s</button>
+        <button type="button" data-nudge="1">+1s</button>
+      </div>
+      <div class="volume">
+        <span>Reaction volume</span>
+        <input type="range" min="0" max="1" step="0.01" value="1" data-volume />
+      </div>
+    </div>
   `;
 }
 
@@ -609,12 +699,17 @@ function bind(root: HTMLElement) {
     throw new Error("Missing fullscreen controls");
   }
 
+  const openStage = root.querySelector<HTMLButtonElement>("[data-open-stage]");
+  if (!openStage) throw new Error("Missing fullscreen launcher");
+
   video.addEventListener("loadedmetadata", () => {
     play.disabled = false;
+    openStage.disabled = false;
   });
 
   return {
     video,
+    openStage,
     videoShell: root.querySelector("[data-video-shell]") as HTMLElement,
     empty: root.querySelector("[data-empty]") as HTMLElement,
     showClock: root.querySelector("[data-show-clock]") as HTMLElement,
